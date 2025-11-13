@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Encapsulamento — Aplicação → Física</title>
+  <style>
+    :root{
+      --bg: #0b1020;
+      --panel: #101734;
+      --ink: #eaf0ff;
+      --muted: #b5c3ff;
+      --accent: #74a7ff;
+      --success: #86efac;
+      --dur: 6s; /* duração da animação (ajustada via slider) */
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; background: radial-gradient(1200px 680px at 20% -10%, #1a275a 0%, #0b1020 40%, #050914 100%);
+      color:var(--ink); font: 16px/1.45 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial, "Noto Sans";
+      display:grid; place-items:center; padding:24px;
+    }
+    .app{max-width:1100px; width:100%; display:grid; gap:20px}
+    h1{font-size:clamp(20px,2vw,28px); margin:0 0 4px}
+    p.lead{margin:0 0 10px; color:var(--muted)}
+
+    .stage{
+      display:grid;
+      grid-template-columns: 1fr minmax(340px, 460px);
+      gap:24px;
+      align-items:start;
+    }
+    .stack{
+      width:100%;
+      border-radius:16px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
+      padding:14px;
+      display:grid; gap:12px;
+      border:1px solid rgba(255,255,255,.06);
+    }
+    .layer{
+      position:relative;
+      background: linear-gradient(180deg, #19224a, #0f1530);
+      border:1px solid rgba(255,255,255,0.1);
+      border-radius:14px;
+      padding:14px 16px 14px 56px;
+      min-height:64px;
+      display:grid;
+      align-content:center;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.03), 0 6px 18px rgba(0,0,0,0.25);
+      z-index:1; /* mantêm-se ao fundo para nunca cobrir badges */
+    }
+    .layer .tag{
+      position:absolute; left:12px; top:50%; transform:translateY(-50%);
+      font-size:12px; letter-spacing:.08em; text-transform:uppercase;
+      color:#cbd8ff; background:rgba(255,255,255,0.06);
+      border:1px solid rgba(255,255,255,0.14);
+      padding:4px 8px; border-radius:999px;
+    }
+    .layer small{color:#a8b7ff}
+
+    .trackWrap{
+      position:relative; height:520px;
+      border-radius:16px; padding:16px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
+      border:1px solid rgba(255,255,255,0.08);
+      overflow:hidden;
+    }
+    .track{ position:absolute; inset:16px; }
+    .rail{
+      position:absolute; left:120px; top:16px; bottom:16px;
+      width:2px; background: linear-gradient(180deg, rgba(255,255,255,0.25), rgba(255,255,255,0.08));
+      z-index:0;
+    }
+    .dot{ position:absolute; left:111px; width:20px; height:20px; border-radius:50%;
+      border:2px solid rgba(255,255,255,0.4); background: rgba(255,255,255,0.06); z-index:2 }
+    .dot.app{ top:40px }   /* 0% */
+    .dot.tcp{ top:140px }  /* 20% */
+    .dot.ip{  top:240px }  /* 40% */
+    .dot.l2{  top:340px }  /* 60% */
+    .dot.fis{ top:440px }  /* 80% */
+
+    .packet{
+      --x: 180px;
+      --w: 150px;
+      --h: 46px;
+      position:absolute; left:var(--x); top:24px;
+      width:var(--w); height:var(--h);
+      border-radius:12px;
+      background: linear-gradient(180deg, #2b5de0, #1f3fa0);
+      box-shadow: 0 12px 26px rgba(45,107,255,.35), inset 0 0 0 1px rgba(255,255,255,.12);
+      border:1px solid rgba(255,255,255,.1);
+      display:grid; place-items:center;
+      color:#fff; font-weight:700; text-align:center;
+      z-index:3;
+      animation: fall var(--dur) linear infinite;
+    }
+    .packet .label{ font-size:12px; font-weight:600; letter-spacing:.02em }
+    /* Strips visuais que entram para ilustrar o "acrescentar cabeçalhos" */
+    .strip{
+      position:absolute; left:-6px; top:-6px; bottom:-6px; width:0;
+      border-radius:10px 0 0 10px;
+      filter: saturate(1.1);
+      opacity:.95;
+      z-index:-1;
+    }
+    .strip.tcp{ background:linear-gradient(180deg,#5cc6a5,#2f9d7e) }
+    .strip.ip{  background:linear-gradient(180deg,#a5c6ff,#527ade) }
+    .strip.l2{  background:linear-gradient(180deg,#ffd166,#e6a93d) }
+    .strip.fcs{ background:linear-gradient(180deg,#ff9aa2,#f86f7b) }
+
+    @keyframes fall{
+      0%   { transform: translateY(0px) }
+      20%  { transform: translateY(100px) }
+      40%  { transform: translateY(200px) }
+      60%  { transform: translateY(300px) }
+      80%  { transform: translateY(400px) }
+      100% { transform: translateY(500px) }
+    }
+
+    .badge{
+      position:absolute; left:calc(var(--x) + var(--w) + 24px);
+      min-width:220px;
+      padding:8px 10px; border-radius:10px;
+      background: rgba(20,28,60,0.8);
+      border: 1px solid rgba(255,255,255,0.14);
+      color:#e7eeff; font-size:13px;
+      opacity:0; transform: translateY(10px);
+      filter: blur(2px);
+      animation: show 0.7s ease forwards;
+      z-index:5; /* garante que os badges ficam por cima de tudo */
+    }
+    .badge b{color:#fff}
+    .badge::before{
+      content:"";
+      position:absolute; left:-18px; top:50%; transform:translateY(-50%);
+      width:14px; height:2px; background: rgba(255,255,255,0.55);
+      box-shadow: 0 0 0 1px rgba(255,255,255,0.1);
+    }
+    .badge.tcp{ top:120px;  animation-delay: calc(var(--dur) * 0.19) }
+    .badge.ip{  top:220px;  animation-delay: calc(var(--dur) * 0.39) }
+    .badge.l2{  top:320px;  animation-delay: calc(var(--dur) * 0.59) }
+    .badge.fcs{ top:420px;  animation-delay: calc(var(--dur) * 0.79) }
+    @keyframes show {
+      to { opacity:1; transform: translateY(0); filter: blur(0) }
+    }
+
+    .controls{
+      display:flex; flex-wrap:wrap; gap:10px; margin-top:12px; align-items:center
+    }
+    .btn{
+      background:#1a2552; color:#fff; border:1px solid rgba(255,255,255,.14);
+      padding:10px 14px; border-radius:12px; cursor:pointer; font-weight:700;
+      transition:.2s transform, .2s filter;
+    }
+    .btn:hover{ transform: translateY(-1px); filter: brightness(1.05) }
+    .hint{ font-size:12px; color:var(--muted) }
+    .slider{ accent-color:#6aa6ff }
+
+    /* Responsivo */
+    @media (max-width: 860px){
+      .stage{ grid-template-columns: 1fr }
+      .packet{ --x: 140px }
+      .badge{ left: calc(var(--x) + var(--w) + 16px); min-width: 180px }
+      .rail{ left: 92px }
+      .dot{ left: 83px }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>Encapsulamento (descida de camadas)</h1>
+      <p class="lead">Aplicação → Transporte → Rede → Enlace → Física — cada camada acrescenta a sua informação de controlo; no destino faz-se o desencapsulamento.</p>
+    </header>
+
+    <section class="stage">
+      <div class="stack" aria-label="Pilha de protocolos">
+        <div class="layer"><span class="tag">7</span><div><strong>Aplicação</strong><br><small>Dados da aplicação (ex.: HTTP)</small></div></div>
+        <div class="layer"><span class="tag">4</span><div><strong>Transporte</strong><br><small>Segmento TCP / Datagrama UDP (portas, fiabilidade)</small></div></div>
+        <div class="layer"><span class="tag">3</span><div><strong>Rede</strong><br><small>Pacote IP (endereços, TTL, routing)</small></div></div>
+        <div class="layer"><span class="tag">2</span><div><strong>Enlace</strong><br><small>Trama Ethernet/802.11 (MAC src/dst, acesso ao meio)</small></div></div>
+        <div class="layer"><span class="tag">1</span><div><strong>Física</strong><br><small>Bits em sinais (elétricos/ópticos/rádio)</small></div></div>
+      </div>
+
+      <div class="trackWrap">
+        <div class="track" aria-hidden="true">
+          <div class="rail"></div>
+          <div class="dot app" title="Aplicação"></div>
+          <div class="dot tcp" title="Transporte"></div>
+          <div class="dot ip"  title="Rede"></div>
+          <div class="dot l2"  title="Enlace"></div>
+          <div class="dot fis" title="Física"></div>
+        </div>
+
+        <div class="packet" id="pdu">
+          <span class="label" id="label">Dados</span>
+          <div class="strip tcp" id="sTCP" aria-hidden="true"></div>
+          <div class="strip ip"  id="sIP" aria-hidden="true"></div>
+          <div class="strip l2"  id="sL2" aria-hidden="true"></div>
+          <div class="strip fcs" id="sFCS" aria-hidden="true"></div>
+        </div>
+
+        <div class="badge tcp"><b>+ Cabeçalho TCP</b> — portas, sequência, ACK, checksum</div>
+        <div class="badge ip"><b>+ Cabeçalho IP</b> — IP origem/destino, TTL, protocolo</div>
+        <div class="badge l2"><b>+ Enlace</b> — MAC origem/destino, EtherType</div>
+        <div class="badge fcs"><b>+ FCS/CRC</b> — verificação de erros do quadro</div>
+
+        <div class="controls">
+          <button class="btn" id="restart">Reiniciar</button>
+          <button class="btn" id="toggle">Pausar</button>
+          <label style="display:flex;align-items:center;gap:8px">
+            <span class="hint">Velocidade</span>
+            <input id="speed" class="slider" type="range" min="3" max="12" step="0.5" value="6" />
+          </label>
+          <span class="hint">Dica: podes abrir em ecrã inteiro e usar “Reiniciar” quando mudares de slide.</span>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const pdu = document.getElementById('pdu');
+    const label = document.getElementById('label');
+    const strips = {
+      tcp: document.getElementById('sTCP'),
+      ip:  document.getElementById('sIP'),
+      l2:  document.getElementById('sL2'),
+      fcs: document.getElementById('sFCS')
+    };
+    const btnRestart = document.getElementById('restart');
+    const btnToggle = document.getElementById('toggle');
+    const speed = document.getElementById('speed');
+
+    let playing = true;
+    let timers = [];
+
+    function setDuration(sec){
+      // Define a nova duração como CSS var (afeta keyframes e badges)
+      document.documentElement.style.setProperty('--dur', sec + 's');
+    }
+
+    function scheduleSteps(){
+      clearTimers();
+      const dur = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--dur')) * 1000;
+      const t20 = dur*0.20, t40 = dur*0.40, t60 = dur*0.60, t80 = dur*0.80;
+
+      // Reset visual
+      label.textContent = 'Dados';
+      Object.values(strips).forEach(s => s.style.width = '0px');
+
+      timers.push(setTimeout(()=>{
+        label.textContent = 'Segmento TCP';
+        strips.tcp.style.transition = 'width .35s ease';
+        strips.tcp.style.width = '22px';
+      }, t20 - 200));
+
+      timers.push(setTimeout(()=>{
+        label.textContent = 'Pacote IP';
+        strips.ip.style.transition = 'width .35s ease';
+        strips.ip.style.width = '38px';
+      }, t40 - 200));
+
+      timers.push(setTimeout(()=>{
+        label.textContent = 'Trama (L2)';
+        strips.l2.style.transition = 'width .35s ease';
+        strips.l2.style.width = '54px';
+      }, t60 - 200));
+
+      timers.push(setTimeout(()=>{
+        label.textContent = 'Bits/Sinais';
+        strips.fcs.style.transition = 'width .35s ease';
+        strips.fcs.style.width = '70px';
+      }, t80 - 200));
+    }
+
+    function clearTimers(){
+      timers.forEach(t=>clearTimeout(t));
+      timers = [];
+    }
+
+    function restart(){
+      // parar animações
+      pdu.style.animation = 'none';
+      // forçar reflow
+      void pdu.offsetWidth;
+      // restaurar
+      pdu.style.animation = '';
+      document.querySelectorAll('.badge').forEach(b=>{
+        b.style.animation = 'none';
+        void b.offsetWidth;
+        b.style.animation = '';
+      });
+      scheduleSteps();
+    }
+
+    btnRestart.addEventListener('click', restart);
+
+    btnToggle.addEventListener('click', ()=>{
+      playing = !playing;
+      pdu.style.animationPlayState = playing ? 'running' : 'paused';
+      document.querySelectorAll('.badge').forEach(b=> b.style.animationPlayState = playing ? 'running' : 'paused');
+      btnToggle.textContent = playing ? 'Pausar' : 'Retomar';
+      if(!playing){ clearTimers(); } else { scheduleSteps(); }
+    });
+
+    speed.addEventListener('input', (e)=>{
+      const v = parseFloat(e.target.value);
+      setDuration(v);
+      // reinicia para aplicar nova duração e reagendar passos
+      restart();
+    });
+
+    // Reiniciar quando a página ganha foco (útil em apresentação)
+    window.addEventListener('visibilitychange', () => {
+      if(!document.hidden) restart();
+    });
+
+    // arranque
+    setDuration(parseFloat(speed.value));
+    scheduleSteps();
+  </script>
+</body>
+</html>
